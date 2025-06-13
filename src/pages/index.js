@@ -3,24 +3,92 @@ import Image from "next/image";
 import { useState, useEffect, useRef } from "react";
 import Thanhdh0DN from "../components/thanhdieuhuong/thanhdh0DN";
 import ChanTrang from "../components/chantrang";
-//import Select from "react-select";
 import ThanhdhDN from "../components/thanhdieuhuong/thanhdhDN";
 import { useSession } from "next-auth/react";
+import { useToast } from '@/context/ToastContext';
+import XacNhanModal from '@/components/xacnhanmodal';
 import dynamic from "next/dynamic";
+import { useRouter } from 'next/router';
 
 const Select = dynamic(() => import("react-select"), { ssr: false });
-// Fetch mặc định (không filter)
-    export async function getServerSideProps() {
-    const res = await fetch("http://localhost:3000/api/job/jobs?status=approved&limit=10&page=1");
-    const data = await res.json();
-    return {
-      props: {
-        initialJobs: data.jobs || [],
-      },
-    };
-  }
+
+// Component modal chọn hồ sơ
+const ChonHoSoModal = ({ isOpen, onClose, onConfirm, hoSos }) => {
+  const [selectedHoSo, setSelectedHoSo] = useState('');
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+      <div className="bg-white rounded-lg p-6 w-[500px] max-h-[80vh] overflow-y-auto">
+        <h3 className="text-xl font-semibold text-black mb-4">Chọn hồ sơ để ứng tuyển</h3>
+        
+        {hoSos.length === 0 ? (
+          <p className="text-gray-600">Bạn chưa có hồ sơ nào được duyệt</p>
+        ) : (
+          <div className="space-y-4">
+            {hoSos.map(hoSo => (
+              <div 
+                key={hoSo.MaHoSo}
+                className={`p-4 border rounded cursor-pointer transition-all ${
+                  selectedHoSo === hoSo.MaHoSo 
+                    ? 'border-teal-500 bg-teal-50' 
+                    : 'border-gray-200 hover:border-teal-500'
+                }`}
+                onClick={() => setSelectedHoSo(hoSo.MaHoSo)}
+              >
+                <h4 className="font-medium text-black">{hoSo.TenHoSo}</h4>
+                <p className="text-sm text-gray-600">
+                  Ngày tạo: {new Date(hoSo.NgayTao).toLocaleDateString('vi-VN')}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex justify-end space-x-2 mt-6">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-gray-100 text-black rounded hover:bg-gray-200"
+          >
+            Hủy
+          </button>
+          <button
+            onClick={() => onConfirm(selectedHoSo)}
+            disabled={!selectedHoSo}
+            className={`px-4 py-2 rounded text-white ${
+              selectedHoSo 
+                ? 'bg-teal-600 hover:bg-teal-700' 
+                : 'bg-gray-400 cursor-not-allowed'
+            }`}
+          >
+            Ứng tuyển
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function Home({initialJobs}) {
+  const router = useRouter();
+  const { showToast } = useToast();
+  const { data: session } = useSession();
   const [loading, setLoading] = useState(false);
+  const [jobs, setJobs] = useState(initialJobs);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [selectedJobId, setSelectedJobId] = useState(null);
+  const listRef = useRef(null);
+  
+  // States cho chức năng ứng tuyển
+  const [showHoSoModal, setShowHoSoModal] = useState(false);
+  const [showXacNhanModal, setShowXacNhanModal] = useState(false);
+  const [hoSos, setHoSos] = useState([]);
+  const [selectedJob, setSelectedJob] = useState(null);
+  const [modalConfig, setModalConfig] = useState({});
+
+  // States cho filter
   const [formFilters, setFormFilters] = useState({
     diaDiem: "",
     nganhNghe: "",
@@ -31,19 +99,78 @@ export default function Home({initialJobs}) {
     nganhNghe: "",
     tieuDe: ""
   });
-  const [page, setPage] = useState(1); // Biến để quản lý trang hiện tại  
-  const [hasMore, setHasMore] = useState(true);   // Biến để xác định có còn dữ liệu để load thêm hay không 
-  const [isFiltering, setIsFiltering] = useState(false);    // Biến để xác định có đang lọc hay không
-  const listRef = useRef(null);     // Dùng để tham chiếu đến danh sách việc làm
-  const [jobs, setJobs] = useState(initialJobs); // Sử dụng jobs từ props ban đầu
-  const { data: session, status } = useSession(); // Lấy session để xác định người dùng đã đăng nhập hay chưa
-  const [selectedJobId, setSelectedJobId] = useState(null); // Dùng để lưu ID công việc đã chọn
-  
-  // Thêm hàm xử lý ứng tuyển và xem chi tiết
-  const handleApply = (job) => {
-    // Xử lý ứng tuyển ở đây (ví dụ: mở modal, chuyển trang, v.v)
-    alert(`Ứng tuyển công việc: ${job.TieuDe}`);
+  const [isFiltering, setIsFiltering] = useState(false);
+
+  // Handler cho việc ứng tuyển
+  const handleApply = async (job) => {
+    if (!session) {
+      showToast('Vui lòng đăng nhập để ứng tuyển', { type: 'error' });
+      router.push('/auth/signIn');
+      return;
+    }
+
+    if (session.user.role !== 'ungvien') {
+      showToast('Chỉ ứng viên mới có thể ứng tuyển', { type: 'error' });
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/ungvien/ds/dshosodaduyet');
+      const data = await res.json();
+      
+      if (data.success) {
+        setHoSos(data.data);
+        setSelectedJob(job);
+        setShowHoSoModal(true);
+      } else {
+        showToast(data.message || 'Không thể tải danh sách hồ sơ', { type: 'error' });
+      }
+    } catch (error) {
+      showToast('Có lỗi xảy ra', { type: 'error' });
+    }
   };
+
+  const handleConfirmApply = async (maHoSo) => {
+    if (!maHoSo) {
+    showToast('Vui lòng chọn hồ sơ để ứng tuyển', { type: 'error' });
+    return;
+  }
+
+    setShowHoSoModal(false);
+    setModalConfig({
+      title: 'Xác nhận ứng tuyển',
+      message: 'Bạn có chắc chắn muốn ứng tuyển vào vị trí này?',
+      data: { maHoSo } 
+    });
+    setShowXacNhanModal(true);
+  };
+
+  const handleXacNhanUngTuyen = async () => {
+    try {
+      const res = await fetch('/api/ungvien/ThaoTac/ungtuyen', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          maHoSo: modalConfig.data.maHoSo,
+          maTinTuyenDung: selectedJob.MaTinTuyenDung,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        showToast('Ứng tuyển thành công!', { type: 'success' });
+        setShowXacNhanModal(false);
+      } else {
+        showToast(data.message || 'Có lỗi xảy ra', { type: 'error' });
+      }
+    } catch (error) {
+      showToast('Có lỗi xảy ra', { type: 'error' });
+    }
+  };
+
   const handleViewDetail = (job) => {
     // Chuyển sang trang chi tiết công việc
     window.location.href = `/nhatuyendung/thongtinvieclam?id=${job.MaTinTuyenDung}`;
@@ -400,9 +527,31 @@ useEffect(() => {
             </div>
           </div>
         </div>
+          <ChonHoSoModal
+        isOpen={showHoSoModal}
+        onClose={() => setShowHoSoModal(false)}
+        onConfirm={handleConfirmApply}
+        hoSos={hoSos}
+      />
 
+      <XacNhanModal
+        isOpen={showXacNhanModal}
+        onClose={() => setShowXacNhanModal(false)}
+        onConfirm={handleXacNhanUngTuyen}
+        title={modalConfig.title}
+        message={modalConfig.message}
+      />
         <ChanTrang />
       </div>
     </>
   );
+}
+export async function getServerSideProps() {
+  const res = await fetch("http://localhost:3000/api/job/jobs?status=approved&limit=10&page=1");
+  const data = await res.json();
+  return {
+    props: {
+      initialJobs: data.jobs || [],
+    },
+  };
 }

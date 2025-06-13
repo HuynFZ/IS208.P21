@@ -1,30 +1,62 @@
 import ThanhdhDN from "../../components/thanhdieuhuong/thanhdhDN";
 import ChanTrang from "../../components/chantrang";
 import Image from "next/image";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react"; // Add useEffect
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
+import axios from 'axios'; // Add axios
+import { useToast } from "../../context/ToastContext"; // Import useToast for notifications
 
 export default function TaiKhoanUngVien() {
   const { data: session } = useSession();
   const router = useRouter();
+  const { showToast } = useToast();
   const fileInputRef = useRef(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({
     hoTen: "",
     email: "",
     soDienThoai: "",
     ngaySinh: "",
     diaChi: "",
-    cv: null,
-    cvName: "",
-    cvUrl: null
   });
 
-  // hàm xử lý chuyển trang
-  const handleEditProfile = () => {
-    router.push('/ungvien/tranghosoungvien');
-  };
+  // Add useEffect to fetch data when component mounts
+useEffect(() => {
+  console.log('Session status:', !!session); // Log session existence
+  if (!session) {
+    router.push('/dangnhap_ky/dangnhap');
+    return;
+  }
+
+  const fetchData = async () => {
+  try {
+    setLoading(true); 
+    const res = await axios.get('/api/ungvien/thongtin');
+    console.log('API Response:', res.data);  
+      const {data} = res.data;
+      // Cập nhật lại tên field cho khớp với API response
+      setForm({
+        hoTen: data.TenUngVien || "",         
+        email: data.Email || "",               
+        soDienThoai: data.SDT || "",         
+        ngaySinh: data.NgaySinh            
+          ? new Date(data.NgaySinh).toLocaleDateString('vi-VN') 
+          : "",
+        diaChi: data.DiaChi || "",           
+      });
+  } catch (error) {
+    console.error('Fetch error:', error);
+    showToast(error.response?.data?.message || 'Có lỗi khi tải thông tin', { type: 'error' });
+  } finally {
+    setLoading(false);
+  }
+};
+
+  fetchData();
+}, [session, router, showToast]);
+
   //hàm xử lý chuyển trang chỉnh sửa thông tin
   const handleEditClick = () => {
     router.push('/ungvien/chinhsuathongtin');
@@ -66,10 +98,11 @@ export default function TaiKhoanUngVien() {
 
   return (
     <>
-      <ThanhdhDN userType="ungvien"/>
-      <div className="w-full bg-teal-100 py-10 text-black text-center">
-        <h1 className="text-black text-4xl font-bold">Tài khoản của tôi</h1>
-      </div>
+     <ThanhdhDN userType="ungvien"/>
+    {console.log('Current form state:', form)}
+    <div className="w-full bg-teal-100 py-10 text-black text-center">
+      <h1 className="text-black text-4xl font-bold">Tài khoản của tôi</h1>
+    </div>
 
       <div className="min-h-screen bg-gray-50 px-6 py-6">
         <div className="max-w-7xl mx-auto">
@@ -79,29 +112,36 @@ export default function TaiKhoanUngVien() {
               <div className="flex-shrink-0">
                 <Image src="/icons/avatar.jpg" alt="Avatar" width={100} height={100} className="rounded-full" />
               </div>
-              <div className="flex-1 text-sm space-y-2">
-                <p className="font-semibold text-black">
-                  Họ tên: <span className="font-normal">{form.hoTen}</span>
-                </p>
-                <p className="font-semibold text-black">
-                  Email: <span className="font-normal">{form.email}</span>
-                </p>
-                <p className="font-semibold text-black">
-                  Số điện thoại: {form.soDienThoai ? 
-                    <span className="font-normal">{form.soDienThoai}</span> : 
-                   <a 
-                    onClick={handleEditClick}
-                    className="text-blue-600 hover:underline cursor-pointer"
-                  >
-                      Thêm số điện thoại
+            <div className="flex-1 text-sm space-y-2">
+              <p className="font-semibold text-black">
+                Họ tên: <span className="font-normal">{form.hoTen}</span>
+              </p>
+              <p className="font-semibold text-black">
+                Email: <span className="font-normal">{form.email}</span>
+              </p>
+              <p className="font-semibold text-black">
+                Số điện thoại: {form.soDienThoai ? 
+                  <span className="font-normal">{form.soDienThoai}</span> : 
+                  <a onClick={handleEditClick} className="text-blue-600 hover:underline cursor-pointer">
+                    Thêm số điện thoại
                   </a>
-                  }
+                }
                 </p>
                 <p className="font-semibold text-black">
-                  Ngày sinh: <span className="font-normal">{form.ngaySinh}</span>
+                  Ngày sinh: {form.ngaySinh ?
+                  <span className="font-normal">{form.ngaySinh}</span> :
+                  <a onClick={handleEditClick} className="text-blue-600 hover:underline cursor-pointer">
+                    Thêm ngày sinh
+                  </a>
+                }
                 </p>
                 <p className="font-semibold text-black">
-                  Địa chỉ: <span className="font-normal">{form.diaChi}</span>
+                  Địa chỉ: {form.diaChi ?
+                  <span className="font-normal">{form.diaChi}</span> :
+                  <a onClick={handleEditClick} className="text-blue-600 hover:underline cursor-pointer">
+                    Thêm địa chỉ
+                  </a>
+                }
                 </p>
               </div>
               <button 
@@ -175,7 +215,7 @@ export default function TaiKhoanUngVien() {
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-2xl font-bold text-black">Hồ sơ của tôi</h2>
                 <button 
-                  onClick={handleEditProfile}
+                  onClick={handleEditClick}
                   className="p-2 hover:bg-gray-100 rounded-lg"
                   title="Chỉnh sửa hồ sơ"
                 >

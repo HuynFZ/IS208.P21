@@ -1,6 +1,6 @@
-import db from "../../../../lib/db";
+import db from "../../../../../lib/db";
 import { getServerSession } from "next-auth/next";
-import { authOptions } from "../auth/[...nextauth]";
+import { authOptions } from "../../auth/[...nextauth]";
 
 // Hàm kiểm tra dữ liệu đầu vào
 const validateInput = (data) => {

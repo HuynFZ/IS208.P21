@@ -14,7 +14,8 @@ export default function ChinhSuaThongTin() {
   const { data: session } = useSession();
   const router = useRouter();
   const { showToast } = useToast();
-  
+   const { id } = router.query;
+   
   // State quản lý form
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -66,7 +67,7 @@ export default function ChinhSuaThongTin() {
   useEffect(() => {
     const layThongTinUngVien = async () => {
       if (!session) {
-        router.push('/login');
+        router.push('/dangky_nhap/dangnhap');
         return;
       }
 
@@ -144,7 +145,7 @@ export default function ChinhSuaThongTin() {
     setIsSubmitting(true);
     
     try {
-      const res = await axios.put("/api/ungvien/capnhatthongtin", pendingFormData);
+      const res = await axios.put("/api/ungvien/ThaoTac/capnhatthongtin", pendingFormData);
 
       if (res.data.success) {
         showToast("Cập nhật thông tin thành công!");

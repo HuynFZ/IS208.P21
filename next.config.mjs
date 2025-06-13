@@ -7,6 +7,7 @@ const nextConfig = {
     },
     responseLimit: '12mb'
   },
+  
   webpack: (config) => {
     config.externals = [...config.externals, 'formidable'];
     return config;

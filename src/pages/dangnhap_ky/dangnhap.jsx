@@ -43,6 +43,8 @@ export default function DangNhap() {
         router.push('/');
       } else if (role === 'nhatuyendung') {
         router.push('/nhatuyendung/trangchuNTD');
+      } else if (role === 'qlhoso') {
+        router.push('/nvhs/trangdshosoduyet');
       } else {
         setError('Không xác định được vai trò người dùng');
       }

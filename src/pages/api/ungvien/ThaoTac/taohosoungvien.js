@@ -1,7 +1,7 @@
 import { formidable } from 'formidable';
-import db from "../../../../lib/db";
+import db from "../../../../../lib/db";
 import { getServerSession } from "next-auth/next";
-import { authOptions } from "../auth/[...nextauth]";
+import { authOptions } from "../../auth/[...nextauth]";
 import fs from 'fs/promises';
 
 export const config = {
@@ -65,13 +65,13 @@ const cleanupTempFiles = async (files) => {
 
 export default async function handler(req, res) {
   // Kiểm tra phương thức
-  if (req.method !== "POST") {
+  if (req.method !== 'PUT' && req.method !== 'GET' && req.method !== 'POST') {
     return res.status(405).json({ 
       success: false, 
-      message: "Phương thức không được phép" 
+      message: 'Method not allowed' 
     });
   }
-
+  
   let connection;
   try {
     // Kiểm tra đăng nhập

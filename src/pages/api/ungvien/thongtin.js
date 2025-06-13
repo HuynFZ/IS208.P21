@@ -9,11 +9,12 @@ export default async function handler(req, res) {
     if (!session) return res.status(401).json({ message: "Unauthorized" });
     const maUngVien = session.user.user_code; 
     const [rows] = await db.query(
-      "SELECT TenUngVien, Email, NgaySinh, SDT, DiaChi, CV FROM UNG_VIEN WHERE MaUngVien = ?",
+      "SELECT * FROM UNG_VIEN WHERE MaUngVien = ?",
       [maUngVien]
     );
     if (!rows.length) return res.status(404).json({ message: "Không tìm thấy ứng viên" });
     const uv = rows[0];
+  
     return res.status(200).json({
       data: {
         TenUngVien: uv.TenUngVien,
